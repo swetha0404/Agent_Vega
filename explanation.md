@@ -305,4 +305,28 @@ services:
 
 The core business logic in `domain/services.py` and the CrewAI agents remain largely unchanged - you're just swapping out the infrastructure layer (simulators → real APIs, static config → dynamic discovery).
 
+## **Recent Features & Capabilities**
+
+### **License Update Operations**
+The agent now provides comprehensive license management:
+
+- **Direct License Application**: `pf-agent license apply --instance pf-prod-1 --file new.lic`
+- **Natural Language Updates**: `pf-agent run "apply new license to pf-prod-1"`
+- **Multiple File Formats**: Supports various PingFederate license formats
+- **Audit Trails**: Full tracking of all license changes
+- **Emergency Replacement**: Quick license updates for expired instances
+- **Bulk Operations**: Update multiple instances efficiently
+
+### **Enhanced Monitoring**
+- **Daily Automated Checks**: APScheduler runs license monitoring
+- **Status Classification**: OK, WARNING (30 days), EXPIRED
+- **Notification System**: Slack integration for alerts
+- **Comprehensive Reporting**: Detailed license status across all instances
+
+### **Developer Experience**
+- **Comprehensive Documentation**: Full README with setup instructions
+- **Local Development**: File storage option (no MongoDB required)
+- **Testing Suite**: Complete test coverage including simulator tests
+- **CI/CD Ready**: Proper .gitignore and environment configuration
+
 Would you like me to elaborate on any specific aspect of the production migration or chatbot integration?

@@ -74,7 +74,16 @@ JWT_SECRET=your-super-secret-key
 | Variable | Description | Default | Required |
 |----------|-------------|---------|----------|
 | `MONGO_URI` | MongoDB connection string | `mongodb://localhost:27017` | No (if USE_FILE_STORAGE=true) |
+| `DB_NAME` | Database name | `pf_agent` | No |
 | `OPENAI_API_KEY` | OpenAI API key for CrewAI | - | Yes (for NL features) |
+| `CREWAI_MODEL` | CrewAI model to use | `gpt-4o-mini` | No |
 | `USE_FILE_STORAGE` | Use JSON files instead of MongoDB | `true` | No |
+| `SIM_BASE_URL` | Simulator base URL | `http://localhost:8080` | No |
 | `SLACK_WEBHOOK` | Slack webhook for notifications | - | No |
-| `DEBUG` | Enable debug logging | `true` | No |
+| `ALERT_EMAIL_TO` | Email for alerts | - | No |
+| `PF_ADMIN_USERNAME` | PingFederate admin username | `Administrator` | No |
+| `PF_ADMIN_PASSWORD` | PingFederate admin password | - | No |
+| `PF_OAUTH_CLIENT_ID` | OAuth client ID | - | No |
+| `PF_OAUTH_CLIENT_SECRET` | OAuth client secret | - | No |
+| `DEBUG` | Enable debug logging | `false` | No |
+| `LOG_LEVEL` | Logging level | `INFO` | No |
