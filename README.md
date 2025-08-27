@@ -35,7 +35,7 @@ A CLI tool for managing PingFederate license operations with intelligent AI-powe
    source venv/bin/activate
    ```
 
-3. **Install Dependencies**
+3. **Install Dependencies** [MAKE SURE TO NOT MISS THE . (*DOT*) at the end]
    ```bash
    pip install -e .
    ```

@@ -37,11 +37,22 @@ def run(
             # Default to license get if no NL processing
             _show_license_status(instance)
         else:
+            console.print(f"🤖 Processing: '{query}'")
             result = route_intent(query, instance)
             console.print(result)
     except Exception as e:
-        console.print(f"[red]Error: {e}[/red]")
-        raise typer.Exit(1)
+        import traceback
+        console.print(f"[red]Natural language processing failed: {type(e).__name__}: {e}[/red]")
+        console.print(f"[dim]Debug: {traceback.format_exc()}[/dim]")
+        console.print("[yellow]💡 Tip: Try using --no-nl flag or direct commands like 'pf-agent license get'[/yellow]")
+        
+        # Fallback to direct license command
+        try:
+            console.print("[blue]Falling back to license status...[/blue]")
+            _show_license_status(instance)
+        except Exception as fallback_error:
+            console.print(f"[red]Fallback also failed: {fallback_error}[/red]")
+            raise typer.Exit(1)
 
 
 # License management commands
@@ -60,7 +71,8 @@ def get(
 @license_app.command()
 def apply(
     instance: Annotated[str, typer.Option("--instance", help="Target instance ID")],
-    file: Annotated[Path, typer.Option("--file", help="License file path")]
+    file: Annotated[Path, typer.Option("--file", help="License file path")],
+    force: Annotated[bool, typer.Option("--force", help="Skip safety checks and confirmations")] = False
 ) -> None:
     """Apply a new license to an instance"""
     try:
@@ -69,9 +81,94 @@ def apply(
             raise typer.Exit(1)
             
         service = LicenseService()
+        
+        # Get current license info for validation
+        try:
+            current_license = service.get_license(instance)
+            console.print(f"[blue]Current license status for {instance}:[/blue]")
+            console.print(f"  Status: {current_license['status']}")
+            console.print(f"  Expires: {current_license['expiry_date']}")
+            console.print(f"  Days remaining: {current_license['days_to_expiry']}")
+        except Exception:
+            console.print(f"[yellow]Warning: Could not retrieve current license for {instance}[/yellow]")
+            current_license = None
+        
+        # Pre-validate the new license file by reading it
+        try:
+            with open(file, 'r') as f:
+                license_content = f.read()
+                
+            # Extract expiry date from license file
+            import re
+            from datetime import datetime
+            
+            # Look for common expiry patterns in license files
+            expiry_patterns = [
+                r'EXPIRY=(\d{4}-\d{2}-\d{2})',
+                r'ExpirationDate=(\d{4}-\d{2}-\d{2})',
+                r'Expires:\s*(\d{4}-\d{2}-\d{2})',
+                r'Valid Until:\s*(\d{4}-\d{2}-\d{2})'
+            ]
+            
+            new_expiry_date = None
+            for pattern in expiry_patterns:
+                match = re.search(pattern, license_content)
+                if match:
+                    new_expiry_date = match.group(1)
+                    break
+                    
+            if new_expiry_date:
+                # Check if new license is already expired
+                expiry_dt = datetime.strptime(new_expiry_date, "%Y-%m-%d")
+                today = datetime.now()
+                days_until_expiry = (expiry_dt - today).days
+                
+                console.print(f"[blue]New license expiry date: {new_expiry_date} ({days_until_expiry} days from now)[/blue]")
+                
+                # ERROR CHECK 1: Prevent applying expired licenses
+                if days_until_expiry < 0:
+                    console.print(f"[red]❌ ERROR: The license file contains an EXPIRED license![/red]")
+                    console.print(f"[red]   License expired {abs(days_until_expiry)} days ago ({new_expiry_date})[/red]")
+                    console.print(f"[yellow]💡 Please obtain a valid, non-expired license file before applying.[/yellow]")
+                    raise typer.Exit(1)
+                
+                # ERROR CHECK 2: Warn if license expires very soon (within 30 days - reasonable threshold)
+                WARNING_THRESHOLD_DAYS = 30
+                if days_until_expiry <= WARNING_THRESHOLD_DAYS and not force:
+                    console.print(f"[yellow]⚠️  WARNING: The new license expires in only {days_until_expiry} days![/yellow]")
+                    console.print(f"[yellow]   This is within the {WARNING_THRESHOLD_DAYS}-day warning threshold.[/yellow]")
+                    console.print(f"[yellow]   Consider obtaining a longer-term license for production stability.[/yellow]")
+                    
+                    if not typer.confirm("Do you want to proceed with this short-term license?"):
+                        console.print("[yellow]License application cancelled.[/yellow]")
+                        raise typer.Exit(0)
+                
+                # ERROR CHECK 3: Confirm replacement of still-valid licenses
+                if current_license and current_license['days_to_expiry'] > 90 and not force:
+                    console.print(f"[yellow]⚠️  WARNING: You are replacing a license that still has {current_license['days_to_expiry']} days remaining![/yellow]")
+                    console.print(f"[yellow]   Current license is still in 'OK' status and valid until {current_license['expiry_date']}[/yellow]")
+                    
+                    if not typer.confirm(f"Are you sure you want to replace the current valid license for {instance}?"):
+                        console.print("[yellow]License application cancelled.[/yellow]")
+                        raise typer.Exit(0)
+                        
+            else:
+                console.print(f"[yellow]Warning: Could not detect expiry date from license file format[/yellow]")
+                if not force and not typer.confirm("Proceed anyway?"):
+                    console.print("[yellow]License application cancelled.[/yellow]")
+                    raise typer.Exit(0)
+                    
+        except (FileNotFoundError, PermissionError, UnicodeDecodeError) as e:
+            console.print(f"[yellow]Warning: Could not pre-validate license file: {e}[/yellow]")
+            if not force and not typer.confirm("Proceed with license application anyway?"):
+                console.print("[yellow]License application cancelled.[/yellow]")
+                raise typer.Exit(0)
+        
+        # Apply the license
+        console.print(f"[blue]Applying license to {instance}...[/blue]")
         result = service.apply_license(instance, str(file))
         
-        console.print("[green]License applied successfully![/green]")
+        console.print("[green]✅ License applied successfully![/green]")
         console.print(f"Instance: {result.instance_id}")
         console.print(f"New expiry: {result.expiry_date}")
         console.print(f"Status: {result.status}")
@@ -108,7 +205,7 @@ def refresh() -> None:
                 console.print(f"[yellow][SLACK] PF License WARNING: instance={w['instance_id']} expires in {w['days_to_expiry']}d ({w['expiry_date']})[/yellow]")
                 
         if expired:
-            console.print(f"[red]🚨 {len(expired)} instances expired[/red]")
+            console.print(f"[red]🚨 {len(expired)} licenses expired[/red]")
             for e in expired:
                 console.print(f"[red][SLACK] PF License EXPIRED: instance={e['instance_id']} expired {abs(e['days_to_expiry'])}d ago ({e['expiry_date']})[/red]")
                 

@@ -69,8 +69,8 @@ def create_license_getter() -> Agent:
     """Create the license getter agent"""
     return Agent(
         role='License Information Specialist',
-        goal='Retrieve and display PingFederate license information clearly',
-        backstory='You are an expert in PingFederate license management, specializing in retrieving and presenting license status information in a clear, actionable format.',
+        goal='Retrieve and display PingFederate license information in clear, human-readable format',
+        backstory='You are an expert in PingFederate license management. You always present information in clear, numbered lists or simple text format - never JSON. You focus on making complex license data easy to understand for operations teams. Remember: licenses expire, not instances.',
         tools=[GetLicenseDetailsTool()],
         verbose=False,
         allow_delegation=False
@@ -92,6 +92,28 @@ def create_license_updater() -> Agent:
 def route_intent(query: str, instance_hint: Optional[str] = None) -> str:
     """Route user query to appropriate CrewAI agent based on intent"""
     
+    # Check if OpenAI API key is available
+    if not config.openai_api_key:
+        print("⚠️  No OpenAI API key found. Falling back to direct service call...")
+        service = LicenseService()
+        
+        try:
+            if instance_hint:
+                record = service.get_license(instance_hint)
+                return f"License for {instance_hint}: Status={record['status']}, Expires={record['expiry_date'][:10]}, Days={record['days_to_expiry']}"
+            else:
+                records = service.get_all_licenses()
+                if not records:
+                    return "No license data found. Run 'pf-agent refresh' first."
+                
+                summary = []
+                for record in records:
+                    summary.append(f"{record['instance_id']}: {record['status']} (expires {record['expiry_date'][:10]})")
+                
+                return "License Summary:\n" + "\n".join(summary)
+        except Exception as e:
+            return f"Error: {e}"
+    
     # Classify intent
     intent, confidence = classifier.classify(query)
     
@@ -104,7 +126,7 @@ def route_intent(query: str, instance_hint: Optional[str] = None) -> str:
         agent = create_license_updater()
         task = Task(
             description=f"Help user apply a license update. Query: '{query}'. Instance hint: {instance_hint or 'none'}",
-            expected_output="Clear guidance on license application process",
+            expected_output="Clear guidance on license application process in plain text format",
             agent=agent
         )
     else:
@@ -112,7 +134,7 @@ def route_intent(query: str, instance_hint: Optional[str] = None) -> str:
         agent = create_license_getter()
         task = Task(
             description=f"Retrieve license information. Query: '{query}'. Instance hint: {instance_hint or 'none'}",
-            expected_output="Comprehensive license status information",
+            expected_output="License status information in clear, human-readable plain text format. Use numbered lists or simple text, not JSON.",
             agent=agent
         )
     
@@ -127,6 +149,12 @@ def route_intent(query: str, instance_hint: Optional[str] = None) -> str:
         result = crew.kickoff()
         return str(result)
     except Exception as e:
+        # Print detailed error information for debugging
+        print(f"⚠️  CrewAI Error: {type(e).__name__}: {e}")
+        import traceback
+        print(f"📍 Error details: {traceback.format_exc()}")
+        print("💡 Falling back to direct service call...")
+        
         # Fallback to direct service call if CrewAI fails
         service = LicenseService()
         

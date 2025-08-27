@@ -71,9 +71,11 @@ class IntentClassifier:
         for pattern in patterns:
             match = re.search(pattern, text.lower())
             if match:
-                if pattern.startswith(r'\b(pf-'):
+                if pattern == r'\bpf-\w+-\d+\b':
+                    # This pattern doesn't have a capturing group, return the whole match
                     return match.group(0)
                 else:
+                    # Other patterns have capturing groups
                     return match.group(1)
         
         return ""
