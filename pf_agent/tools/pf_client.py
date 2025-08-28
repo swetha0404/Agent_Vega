@@ -1,26 +1,33 @@
 """PingFederate REST client"""
 
 import requests
+from requests.auth import HTTPBasicAuth
 from typing import Dict, Any
 from ..config import InstanceConfig
 from ..domain.models import LicenseView, ApplyLicenseRequest, LicenseAgreement
 
 
 class PFClient:
-    """REST client for PingFederate APIs"""
+    """REST client for PingFederate APIs with authentication support"""
     
-    def __init__(self, timeout: int = 30) -> None:
+    def __init__(self, username: str = "Administrator", password: str = "2FederateM0re", timeout: int = 30) -> None:
         self.timeout = timeout
         self.session = requests.Session()
-        # In real implementation, add auth headers here
-        # self.session.headers.update({"Authorization": "Bearer <token>"})
+        
+        # Set up authentication and required headers for PingFederate
+        self.session.auth = HTTPBasicAuth(username, password)
+        self.session.headers.update({
+            "Accept": "application/json",
+            "Content-Type": "application/json",
+            "X-XSRF-Header": "PingFederate"  # Required for CSRF protection
+        })
     
     def get_license(self, instance: InstanceConfig) -> LicenseView:
         """Get license information from PingFederate instance"""
         url = f"{instance.base_url}/license"
         
         try:
-            response = self.session.get(url, timeout=self.timeout)
+            response = self.session.get(url, timeout=self.timeout, verify=False)
             response.raise_for_status()
             data = response.json()
             return LicenseView(**data)
@@ -37,7 +44,8 @@ class PFClient:
             response = self.session.put(
                 url, 
                 json=request_data.model_dump(),
-                timeout=self.timeout
+                timeout=self.timeout,
+                verify=False
             )
             response.raise_for_status()
             data = response.json()
@@ -50,7 +58,7 @@ class PFClient:
         url = f"{instance.base_url}/license/agreement"
         
         try:
-            response = self.session.get(url, timeout=self.timeout)
+            response = self.session.get(url, timeout=self.timeout, verify=False)
             response.raise_for_status()
             data = response.json()
             return LicenseAgreement(**data)
@@ -65,7 +73,8 @@ class PFClient:
             response = self.session.put(
                 url,
                 json=agreement.model_dump(),
-                timeout=self.timeout
+                timeout=self.timeout,
+                verify=False
             )
             response.raise_for_status()
             data = response.json()

@@ -291,6 +291,6 @@ docker-compose.override.yml
 
 # ===== MISC =====
 # Jupyter Notebook outputs (keep examples clean)
-References/*.ipynb
+References/
 !References/License_Summary.ipynb
 !References/License\ Agent.ipynb

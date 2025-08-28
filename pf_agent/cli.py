@@ -49,7 +49,7 @@ def run(
         # Fallback to direct license command
         try:
             console.print("[blue]Falling back to license status...[/blue]")
-            _show_license_status(instance)
+            _show_license_status(instance, None)  # No environment filter for fallback
         except Exception as fallback_error:
             console.print(f"[red]Fallback also failed: {fallback_error}[/red]")
             raise typer.Exit(1)
@@ -62,10 +62,11 @@ app.add_typer(license_app)
 
 @license_app.command()
 def get(
-    instance: Annotated[Optional[str], typer.Option("--instance", help="Specific instance ID")] = None
+    instance: Annotated[Optional[str], typer.Option("--instance", help="Specific instance ID")] = None,
+    env: Annotated[Optional[str], typer.Option("--env", help="Filter by environment: dev, stage, prod")] = None
 ) -> None:
     """Get license information from cache"""
-    _show_license_status(instance)
+    _show_license_status(instance, env)
 
 
 @license_app.command()
@@ -224,16 +225,32 @@ def up(
     port: Annotated[int, typer.Option("--port", help="Port to run simulator on")] = 8080
 ) -> None:
     """Start the PingFederate API simulator"""
+    from pf_agent.simulators.seed_data import generate_enterprise_instance_data
+    
     console.print(f"[blue]Starting PingFederate API simulator on port {port}...[/blue]")
-    console.print("[green]Available endpoints:[/green]")
-    for i in range(1, 6):
-        console.print(f"  - http://localhost:{port}/pf{i}/license (GET/PUT)")
-        console.print(f"  - http://localhost:{port}/pf{i}/license/agreement (GET/PUT)")
+    
+    # Get enterprise instance data to show real scale
+    instance_data = generate_enterprise_instance_data()
+    instance_count = len(instance_data)
+    
+    console.print(f"[green]🏢 Enterprise Scale: {instance_count} PingFederate instances[/green]")
+    console.print("[green]Sample endpoints:[/green]")
+    
+    # Show first few endpoints as examples
+    sample_keys = list(instance_data.keys())[:5]
+    for key in sample_keys:
+        console.print(f"  - http://localhost:{port}/{key}/license (GET/PUT)")
+        console.print(f"  - http://localhost:{port}/{key}/license/agreement (GET/PUT)")
+    
+    if instance_count > 5:
+        console.print(f"  ... and {instance_count - 5} more instances")
+    
+    console.print(f"\n[blue]💡 Use 'pf-agent refresh' to sync all {instance_count} licenses[/blue]")
     
     run_simulator(port)
 
 
-def _show_license_status(instance_id: Optional[str] = None) -> None:
+def _show_license_status(instance_id: Optional[str] = None, env_filter: Optional[str] = None) -> None:
     """Helper to display license status in a table"""
     try:
         service = LicenseService()
@@ -246,9 +263,23 @@ def _show_license_status(instance_id: Optional[str] = None) -> None:
         if not records:
             console.print("[yellow]No license data found. Run 'pf-agent refresh' first.[/yellow]")
             return
+        
+        # Filter by environment if specified
+        if env_filter:
+            filtered_records = []
+            for record in records:
+                instance_env = record['instance_id'].split('-')[1] if '-' in record['instance_id'] else 'unknown'
+                if instance_env == env_filter:
+                    filtered_records.append(record)
+            records = filtered_records
+            
+            if not records:
+                console.print(f"[yellow]No license data found for {env_filter} environment.[/yellow]")
+                return
             
         # Create rich table
-        table = Table(title="PingFederate License Status")
+        env_title = f" ({env_filter.upper()} Environment)" if env_filter else ""
+        table = Table(title=f"PingFederate License Status{env_title}")
         table.add_column("Instance", style="cyan", no_wrap=True)
         table.add_column("Env", style="magenta")
         table.add_column("Issued To", style="green")

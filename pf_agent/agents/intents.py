@@ -80,6 +80,56 @@ class IntentClassifier:
         
         return ""
 
+    def extract_environment_hint(self, text: str) -> str:
+        """Extract environment hints from text (dev, staging, prod)"""
+        text_lower = text.lower()
+        
+        # Look for environment keywords
+        env_patterns = {
+            'dev': [r'\bdev\b', r'\bdevelopment\b', r'\bdev\s+environment\b', r'\bdev\s+servers?\b'],
+            'stage': [r'\bstag\w*\b', r'\btest\b', r'\btesting\b', r'\bstage\s+environment\b'],
+            'prod': [r'\bprod\b', r'\bproduction\b', r'\blive\b', r'\bprod\s+environment\b', r'\bproduction\s+servers?\b'],
+            'uat': [r'\buat\b', r'\buser\s+acceptance\b', r'\bacceptance\b', r'\buat\s+environment\b'],
+            'dr': [r'\bdr\b', r'\bdisaster\s+recovery\b', r'\bdr\s+environment\b', r'\brecovery\b']
+        }
+        
+        # Check each environment pattern
+        for env, patterns in env_patterns.items():
+            for pattern in patterns:
+                if re.search(pattern, text_lower):
+                    return env
+        
+        return ""
+
+    def extract_status_hint(self, text: str) -> str:
+        """Extract status hints from text (need attention, problems, expired, warning)"""
+        text_lower = text.lower()
+        
+        # Look for status keywords that indicate problems/attention needed
+        attention_patterns = [
+            r'\bneed\s+attention\b',
+            r'\bneed\s+help\b',
+            r'\bproblems?\b',
+            r'\bissues?\b',
+            r'\bexpired?\b',
+            r'\bexpiring\b',
+            r'\bwarnings?\b',
+            r'\balerts?\b',
+            r'\bfailing\b',
+            r'\bbad\b',
+            r'\berrors?\b',
+            r'\btrouble\b',
+            r'\bcritical\b',
+            r'\burgent\b'
+        ]
+        
+        # Check for attention-needed patterns
+        for pattern in attention_patterns:
+            if re.search(pattern, text_lower):
+                return 'attention'
+        
+        return ""
+
 
 # Global classifier instance
 classifier = IntentClassifier()
